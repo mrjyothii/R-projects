@@ -1,0 +1,632 @@
+---
+title: "FitBit Data Analysis For Bellabeat"
+author: "Jyothi"
+date: "2024-08-13"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+
+### 1. Ask
+
+#### Business task
+
+
+Analyze smart device usage data of **FitBit Fitness Tracker Data** in order to gain insight into how consumers use  non-Bellabeat smart devices and apply these insights on one Bellabeat product.
+
+#### Key stakeholders
+
+* Urška Sršen: Bellabeat’s co-founder and Chief Creative Officer.
+* Sando Mur: Mathematician and Bellabeat’s co-founder.
+* Bellabeat marketing analytics team
+
+
+### 2. Prepare
+
+[FitBit Fitness Tracker Data](https://www.kaggle.com/datasets/arashnic/fitbit) (CC0: Public Domain, dataset made available through Mobius): This Kaggle data set contains personal fitness tracker from thirty fitbit users.As it is an open source data and provided by well known entity.
+
+The data set has 2 directories 
+directory mturkfitbit_export_12.03.16-11.04.16 with 11 files 
+directory mturkfitbit_export_12.04.16-12.05.16 with 18 files where 3 files are in both wide and long format
+
+we need to merge 11 files common in both directories with different time period.
+
+dailyActivity file = dailycalories + dailysteps + daily intensities
+
+so merge only dailyActivity files from both directories. In Remaining files the data is in minutes,hours and seconds, if you want to go into minute analysis you can use all those files. 
+
+```{r importing libraries}
+library(tidyverse)
+library(lubridate)
+```
+
+
+In this Analysis , we are taking only the dailyActivity data (calories,steps,activity details), sleepday , weightlog data and heart_rate data
+
+
+```{r downloading dataset}
+daily_Activity1 <- read.csv("C:/Users/HI/Downloads/dailyActivity_merged.csv")
+daily_Activity2 <- read.csv("C:/Users/HI/Downloads/New folder/dailyActivity_merged.csv")
+daily_sleep <- read.csv("C:/Users/HI/Downloads/sleepDay_merged.csv")
+weightinfo2 <- read.csv("C:/Users/HI/Downloads/New folder/weightLogInfo_merged.csv")
+weightinfo1 <- read.csv("C:/Users/HI/Downloads/weightLogInfo_merged.csv")
+heart_rate1 <- read.csv("C:/Users/HI/Downloads/heartrate_seconds_1.csv")
+heart_rate2 <- read.csv("C:/Users/HI/Downloads/heartrate_seconds_2.csv")
+```
+
+
+
+### 3 Process
+
+
+
+
+#### **3.1 merging rows in common tables and removing duplicates**
+
+As the columns in both daily_Activity1 and daily_activity2 are same and the columns in both weightinfo1 and weightinfo2 are same we are binding the data of different months together.
+
+We are removing duplicate rows by using Id, Date as primary key
+
+```{r Merging tables}
+df <- bind_rows(daily_Activity1,daily_Activity2) ## merging the rows of two tables
+daily_Activity <- df %>% distinct(Id,ActivityDate, .keep_all = TRUE) ## using Id,Activity Date as primary key and removing duplicates
+
+df1 <- bind_rows(weightinfo1,weightinfo2)
+weight_info <- df1 %>% distinct(Id,Date, .keep_all = TRUE) 
+
+df2 <- bind_rows(heart_rate1,heart_rate2)
+heart_rate <- df2 %>% distinct(Id,Time, .keep_all = TRUE)
+```
+
+We are not merging the three files because in the 
+
+* **daily_Activity** there are 35 respondents with 1373 rows
+* **daily_sleep** we have 24 respondents with 413 rows
+* **weight_info** we have 13 respondents with 98 rows
+
+So if we merge all the 3 files with common data we will loose lot of data. so trying to analyse them individually
+
+#### **3.2 Viewing the datasets**
+
+```{r}
+view(weight_info)
+view(daily_sleep)
+view(daily_Activity)
+view(heart_rate)
+```
+
+
+#### **3.3 changing date to consistent format**
+
+Date is present in m/d/y format changing to d/m/y format in all the three files
+
+```{r}
+daily_Activity <- daily_Activity %>% 
+  rename(Date = ActivityDate) %>% 
+  mutate(Date = as.Date(Date,"%m/%d/%Y"))
+daily_sleep <- daily_sleep %>% 
+  rename(Date = SleepDay) %>% 
+  mutate(Date = as.Date(Date,"%m/%d/%Y"))
+weight_info <- weight_info %>% 
+  mutate(Date = as.Date(Date,"%m/%d/%Y"))
+heart_rate <- heart_rate %>% 
+  rename(Date = Time) %>% 
+  mutate(Date = as.Date(Date,"%m/%d/%Y"))
+```
+
+#### **3.4 Removing some variables**
+
+```{r removing extra variables}
+weight_info <- weight_info %>% select(-c(Fat, LogId, IsManualReport))
+daily_Activity <- daily_Activity %>% select(-c(TrackerDistance, LoggedActivitiesDistance))
+daily_sleep <- daily_sleep %>% select(-c(TotalSleepRecords))
+```
+
+#### **3.5 Adding new variables**
+
+We are adding column months which contains name of months
+
+```{r}
+daily_Activity$months <- format(daily_Activity$Date, "%b")
+daily_sleep$months <- format(daily_sleep$Date, "%b")
+weight_info$months <- format(weight_info$Date, "%b")
+```
+
+we are adding column Weekday which contains week name
+
+```{r}
+daily_Activity$weekday <- weekdays(as.Date(daily_Activity$Date))
+daily_sleep$weekday <- weekdays(as.Date(daily_sleep$Date))
+weight_info$weekday <- weekdays(as.Date(weight_info$Date))
+```
+
+
+#### **3.6 Statistical summary of the variables**
+
+checking the data type and the statistical summary of each variable
+
+
+```{r}
+str(heart_rate)
+```
+
+```{r}
+str(weight_info)
+```
+```{r}
+str(daily_Activity)
+```
+```{r}
+str(daily_sleep)
+```
+
+```{r}
+summary(daily_Activity)
+```
+```{r}
+summary(daily_sleep)
+```
+
+```{r}
+summary(weight_info)
+```
+
+
+### **4 Analyze**
+
+
+
+Dataset generated by respondents to a distributed survey via Amazon Mechanical Turk between 12.03.2016-12.05.2016 i.e., (62 days)
+
+* March - 20 days - 11 respondents
+* April - 30 days - 24(new) + 11 = 35 respondents
+* May - 12 days - 35-3(11)-2(24) = 30 respondents
+
+Totally there are 35 respondents
+
+8 respondents data we have for 3 months
+
+* 1503960366
+* 1624580081
+* 4020332650
+* 4319703577
+* 4388161847
+* 4445114986
+* 4702921684
+* 6962181067
+
+3 repondents who are in March are not there in May
+
+* 2347167796 -- Active for 32 days
+* 2891001357 -- Active for 8 days
+* 4057192912 -- Active for 35 days
+
+2 repondents who got added in April are not there in May
+
+* 6391747486 -- Active for 9 days
+* 8253242879 -- Active for 30 days
+
+
+For Analysis I have used Average, as the sum will be misleading as the no. of respondents changed each month and  the no. of days data we have vary per month
+
+
+
+#### **4.1 Average calories burnt per month**
+
+
+
+```{r}
+daily_Activity %>%  group_by(months) %>% 
+  summarise(avg_cal = mean(Calories)) %>% 
+  ggplot(aes(x = months, y = avg_cal)) + 
+  geom_col(fill = "orange") + 
+  scale_x_discrete(limits = c("Mar","Apr","May"))+
+  geom_text(aes(label = round(avg_cal),vjust = 1.5)) +
+  labs(title = 'Average Calories burned per month',
+       x = 'Months',
+       y = 'Avg_Calories',
+       caption = 'Data Source: FitBit Fitness Tracker Data')
+```
+
+
+
+
+#### **4.2 Average Steps per month**
+
+
+
+```{r}
+daily_Activity %>% 
+  group_by(months) %>% 
+  summarise(avg_steps = mean(TotalSteps)) %>% 
+ggplot(aes(x = months, y = avg_steps)) + 
+  geom_col(fill = "orange") + 
+  scale_x_discrete(limits = c("Mar","Apr","May"))+
+  geom_text(aes(label = round(avg_steps),vjust = 1.5)) +
+  labs(title = 'Average Steps per month',
+       x = 'Months',
+       y = 'Avg_steps',
+       caption = 'Data Source: FitBit Fitness Tracker Data')
+```
+
+
+* As there are less respondents in March we can see the huge difference in steps
+
+
+#### **4.3 Average Steps per week**
+
+
+
+```{r}
+daily_Activity %>% 
+  ggplot(aes(weekday, TotalSteps,fill = weekday)) + 
+  geom_boxplot() + 
+  scale_x_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"))+
+  labs(title = 'Average Steps per week',
+       x = 'Week_days',
+       y = 'Total Steps',
+       caption = 'Data Source: FitBit Fitness Tracker Data') + theme(legend.position = "none")
+```
+
+
+* Approximately, Average 6600 - 7800 steps are taken weekly. Black dots indicates Steps which are extremely high than normal steps
+
+
+
+#### **4.4 Average Calories burnt per week**
+
+
+
+```{r}
+daily_Activity %>% 
+  ggplot(aes(weekday, Calories, fill = weekday)) + 
+  geom_boxplot() + 
+  scale_x_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"))+
+  labs(title = 'Calories burnt per week',
+       x = 'Week_days',
+       y = 'Calories',
+       caption = 'Data Source: FitBit Fitness Tracker Data') + theme(legend.position = "none")
+```
+
+
+* 2200-2400 calories are averagely burnt weekly 
+
+
+
+
+#### **4.4 Average calories burnt per day**
+
+
+
+```{r}
+daily_Activity %>% 
+  group_by(Date) %>% 
+  summarise(avg_calories = mean(Calories)) %>% 
+  ggplot(aes(x = Date, y = avg_calories)) + geom_line(color = "orange") + 
+  labs(title = 'Average calories per day',
+       x = 'days',
+       y = 'Avg_calories')
+```
+
+
+
+
+* Average calories burnt in march is highly fluctuation as there are less respondents
+
+
+
+
+#### **4.4 Total Calories burnt vs. Total Steps**
+
+
+
+```{r}
+daily_Activity %>%  group_by(TotalSteps,Calories) %>% 
+  ggplot(aes(x = TotalSteps, y = Calories,color = Calories)) + 
+  geom_point() + 
+  labs(title = 'Total Steps vs. Total Calories burnt',
+       x = 'Total_steps',
+       y = 'Total_calories') +
+  theme(legend.position = "none")
+```
+
+
+* We can say that total steps is directly proportional to calories burnt. As the no. of steps increases the Calories burnt increases
+
+
+
+
+#### **4.5 Active level by distance**
+
+
+
+```{r}
+daily_Activity %>% 
+  select(VeryActiveDistance,ModeratelyActiveDistance,LightActiveDistance) %>% 
+  summarise(across(everything(),list(sum))) %>% 
+  gather(active_level,distance) %>% 
+  mutate(percent = (distance/sum(distance))*100) %>% 
+  mutate(ypos = cumsum(percent)- 0.5*percent ) %>% 
+  ggplot(aes(x="", y=percent, fill=active_level)) +
+  geom_bar(stat="identity", width=1,color = "white") +
+  coord_polar("y",start = 0)+theme_void() + 
+  geom_text(aes(y=ypos,label = paste0(round(percent),'%')),color = "white",size =4)
+
+```
+
+
+
+* 62% of distance covered by respondents is Light Active Distance, 27% is Moderately Active Distance, 11% is very active distance
+
+
+
+
+#### **4.6 Active level by Minutes**
+
+
+
+```{r}
+daily_Activity %>% 
+  select(VeryActiveMinutes, 
+         FairlyActiveMinutes, 
+         LightlyActiveMinutes) %>% 
+  summarise(across(everything(), list(sum))) %>% 
+  gather(active_level, minutes) %>% 
+  mutate(perct = (minutes/sum(minutes))*100) %>% 
+  ggplot(aes(x = reorder(active_level,-perct), y = perct)) + geom_col(fill = "orange") +
+  geom_text(aes(label = paste0(round(perct),'%')),vjust = 1.5) +
+  labs(title = 'Active level by Minutes',
+       x = 'Active_level',
+       y = 'percent',
+       caption = 'Data Source: FitBit Fitness Tracker Data')
+```
+
+
+
+* Lightly Active minutes is the highest
+
+
+
+Merging daily_Activity and weight info to see the correlation between distance and weight of respondents
+
+
+
+```{r}
+dist_weight <- merge(x = daily_Activity,y = weight_info[,c("Id","Date","WeightKg")], by = c('Id', 'Date'))
+```
+
+
+
+
+#### **4.7 Total distance vs. Weight in kgs**
+
+
+
+```{r}
+ dist_weight %>% 
+  select(Id, WeightKg, TotalDistance) %>% 
+  group_by(Id) %>% 
+  summarise_all(list(~mean(.))) %>% 
+  drop_na() %>% 
+  mutate(Id = factor(Id)) %>%
+  ggplot(aes(WeightKg, TotalDistance, fill = Id)) +
+  geom_point(aes(color = Id, size = WeightKg), alpha = 0.5) +
+  theme(legend.position = "none")
+```
+
+
+
+* As the weight of person increases the distance covered is reduced
+
+
+
+
+Merging daily_Activity and daily_sleep to see the correlation between distance and sleep of respondents
+
+
+
+```{r}
+dist_sleep <- merge(x = daily_Activity,y = daily_sleep[,c("Id","Date","TotalTimeInBed","TotalMinutesAsleep")], by = c('Id', 'Date'))
+```
+
+
+
+
+#### **4.8 Average distance vs. average sleep per user**
+
+
+
+```{r}
+ dist_sleep %>% 
+  select(Id, TotalMinutesAsleep, TotalDistance) %>% 
+  group_by(Id) %>% 
+  summarise_all(list(~mean(.))) %>% 
+  drop_na() %>% 
+  mutate(Id = factor(Id)) %>%
+  ggplot()+
+  geom_bar(aes(x = Id, y = TotalDistance), stat = "identity", fill = 'lightblue') +
+  geom_point(aes(x = Id, y = TotalMinutesAsleep/60), color = 'black')+
+  geom_segment(aes(x = Id,xend = Id, yend = TotalMinutesAsleep/60,y=0), color = 'black') +
+  scale_y_continuous(name = "Total Distance", 
+    sec.axis = sec_axis(~.*60, name = "Sleep in minutes")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+* We can't find any relation as there are respondents with good sleep without covering minimum distance and people covering greater distance who are not having good sleep
+
+
+
+#### **4.9 Sleep quality by steps**
+
+
+
+```{r}
+ dist_sleep %>% 
+  select(TotalMinutesAsleep, TotalSteps) %>% 
+  mutate(sleeping_hrs = ifelse(TotalMinutesAsleep <= 300,'Less than 5h',
+                        ifelse(TotalMinutesAsleep <= 480,'Less than 8h',
+                        'More than 9h'))) %>% 
+  mutate(steps_taken = ifelse(TotalSteps <= 5000, 'Less than 5000 steps',
+                       ifelse(TotalSteps <= 10000, '5001 to 10000 steps',
+                       ifelse(TotalSteps <= 15000, '10001 to 15000 steps',
+                              'More than 15000 steps')))) %>% 
+  group_by(sleeping_hrs,steps_taken) %>% 
+  summarise(counts = n(),.groups = "drop_last") %>%  # n() gives current group size # .groups drops the steps_taken
+  mutate(active_level = factor(steps_taken, 
+                                levels = c('Less than 5000 steps',
+                                           '5001 to 10000 steps',
+                                           '10001 to 15000 steps',
+                                           'More than 15000 steps'))) %>% 
+
+  ggplot(aes(x = sleeping_hrs, 
+             y = counts, 
+             fill = sleeping_hrs)) +
+  geom_bar(stat = "identity") + 
+  facet_wrap(~active_level, nrow = 1) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position = "none")
+  
+```
+
+
+
+
+* Moderately Walking between 5000 to 15000 steps can help to have good sleep between 5 hrs to 9hrs
+
+* people walking more than 15000 steps are not having enough sleep
+
+
+
+
+#### **4.10 struggling to sleep vs. Steps taken**
+
+
+
+```{r}
+dist_sleep %>% 
+  select(Id,TotalSteps,TotalMinutesAsleep,TotalTimeInBed) %>% 
+  mutate(struggling_tosleep = TotalTimeInBed - TotalMinutesAsleep) %>% 
+  group_by(Id) %>% 
+  summarise_all(list(~mean(.))) %>% 
+  mutate(Id = factor(Id)) %>% 
+  ggplot(aes(x=TotalSteps,y =struggling_tosleep,color = Id,size =2,alpha = 0.5)) + 
+  geom_point() +
+  theme(legend.position = "none")
+```
+
+
+
+* Majority of people are sleeping within 1 hour in bed and the extreme cases seem to be outliers
+
+
+
+#### **4.10 Average sleep per user**
+
+
+
+```{r}
+dist_sleep %>% 
+ select(TotalMinutesAsleep, TotalSteps) %>% 
+  mutate(sleeping_hrs = ifelse(TotalMinutesAsleep <= 300,'Less than 7h',
+                        ifelse(TotalMinutesAsleep <= 540,'Less than 9h',
+                        'More than 9h'))) %>%
+  ggplot(aes(x=TotalMinutesAsleep,fill = sleeping_hrs)) +geom_histogram(position = 'dodge',bins = 30)
+
+```
+
+
+
+* Most people have sleep between 300-520 minutes (i.e.,5hrs - 8.5 hrs)
+
+
+
+#### **4.11 Average heart_rate per user**
+
+
+As the heart_rate is in seconds, we are taking average heart_rate per day per respondent
+
+```{r}
+heart_rate_daily <- heart_rate %>% group_by(Id,Date) %>%  summarise(heart_rate = mean(Value), .groups = "drop_last") 
+```
+
+
+Adding months and weekday column to the heart_rate data
+
+```{r}
+heart_rate_daily$months <- format(heart_rate_daily$Date, "%b")
+heart_rate_daily$weekday <- weekdays(as.Date(heart_rate_daily$Date))
+```
+
+#### **4.11 Average heart_rate per month**
+
+```{r}
+heart_rate_daily %>% 
+  group_by(months) %>% 
+  summarise(avg_heart_rate = mean(heart_rate)) %>% 
+ggplot(aes(x = months, y = avg_heart_rate)) + 
+  geom_col(fill = "orange") + 
+  scale_x_discrete(limits = c("Mar","Apr","May"))+
+  geom_text(aes(label = round(avg_heart_rate),vjust = 1.5)) +
+  labs(title = 'Average heart beat per month',
+       x = 'Months',
+       y = 'Avg_heartbeat',
+       caption = 'Data Source: FitBit Fitness Tracker Data')
+```
+
+
+* A normal resting heart rate for adults ranges from 60 to 100 beats per minute.
+
+
+
+#### **4.12 Average heart_rate per week**
+
+
+```{r}
+heart_rate_daily %>% 
+  ggplot(aes(weekday, heart_rate, fill = weekday)) + 
+  geom_boxplot() + 
+  scale_x_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"))+
+  labs(title = 'Heart_rate per week',
+       x = 'Week_days',
+       y = 'Heart_rate',
+       caption = 'Data Source: FitBit Fitness Tracker Data') + theme(legend.position = "none")
+```
+
+
+#### **4.13 Average heart_rate per user**
+
+
+```{r}
+ heart_rate_daily %>% 
+  select(Id, heart_rate) %>% 
+  group_by(Id) %>% 
+  summarise(avg_heart = mean(heart_rate)) %>% 
+  drop_na() %>% 
+  mutate(Id = factor(Id)) %>%
+  ggplot(aes(x = Id, y = avg_heart)) + 
+  geom_col(fill = "orange") + 
+  geom_text(aes(label = round(avg_heart),vjust = 1.5)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+We can see customers with avg_heart_rate of 66 and 96 which is normal.
+
+
+
+### **5 Share**
+
+Respondents are mostly using the device for tracking steps, heart-beat, sleep , weight info ,calories burnt
+
+1. suggest customer to have regular activity of walking by giving personalized messages as they have forgot to walk on a particular day.
+2. Customized messages of calories intake, calories burnt, weight info, sleep , heart-rate, steps taken on particular day.
+3. Inform customers with unusual heart beat for check-up
+4. Give suggestion to person with more weight on food habits and activity best suited to reduce calories.
+5. Customized messages of how to sleep better who have sleep <5hrs
+
+
+
+
